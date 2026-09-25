@@ -1,4 +1,7 @@
 pub mod intcode {
+    use std::thread::{self, JoinHandle};
+
+    use flume::{Receiver, RecvError, Sender};
     type Token = i32;
 
     fn tokenize(input: &str) -> Vec<Token> {
@@ -24,7 +27,6 @@ pub mod intcode {
             }
         }
     }
-
     #[derive(Debug)]
     struct Param {
         val: i32,
@@ -56,13 +58,14 @@ pub mod intcode {
 
     pub struct VM {
         toks: Vec<Token>,
-        input: Vec<i32>,
-        output: Vec<i32>,
+        input: Receiver<i32>,
+        output: Sender<i32>,
         int_ptr: usize,
+        final_val: i32,
     }
 
     impl Op {
-        pub fn exec(&self, prog: &mut VM) {
+        pub fn exec(&self, prog: &mut VM) -> Result<(), RecvError> {
             match self {
                 Op::Add(a, b, o) => {
                     prog.toks[o.val as usize] = a.eval(&prog.toks) + b.eval(&prog.toks);
@@ -73,11 +76,13 @@ pub mod intcode {
                     prog.int_ptr += 4;
                 }
                 Op::In(o) => {
-                    prog.toks[o.val as usize] = prog.input.pop().unwrap();
+                    prog.toks[o.val as usize] = prog.input.recv()?;
                     prog.int_ptr += 2;
                 }
                 Op::Out(o) => {
-                    prog.output.push(o.eval(&prog.toks));
+                    let v = o.eval(&prog.toks);
+                    prog.output.send(v).unwrap();
+                    prog.final_val = v;
                     prog.int_ptr += 2;
                 }
                 Op::JifT(a, b) => {
@@ -112,7 +117,8 @@ pub mod intcode {
                 }
                 Op::Exit => {}
                 Op::Unknown(c) => panic!("Unkown Code: {}", c),
-            }
+            };
+            Ok(())
         }
 
         pub fn parse(toks: &[Token]) -> Self {
@@ -210,28 +216,35 @@ pub mod intcode {
     }
 
     impl VM {
-        pub fn run(&mut self) -> i32 {
+        pub fn run(&mut self) -> Option<i32> {
             loop {
                 let op = Op::parse(&self.toks[self.int_ptr..]);
                 if matches!(op, Op::Exit) {
-                    break;
+                    return Some(self.final_val);
                 }
-                // #[cfg(test)]
-                // {
-                    dbg!(&op);
-                // }
-                op.exec(self);
+                op.exec(self).ok()?;
             }
-            *self.output.last().unwrap()
         }
 
-        pub fn new(s: &str, input: Vec<i32>) -> Self {
+        pub fn start(mut self) -> JoinHandle<Option<i32>> {
+            thread::spawn(move || self.run())
+        }
+
+        pub fn new(s: &str, input: Receiver<i32>, output: Sender<i32>) -> Self {
             VM {
                 toks: tokenize(s),
                 input,
-                output: vec![],
+                output,
                 int_ptr: 0,
+                final_val: 0,
             }
+        }
+
+        pub fn simple(s: &str) -> (Sender<i32>, Receiver<i32>) {
+            let (input_tx, input_rx) = flume::unbounded();
+            let (output_tx, output_rx) = flume::unbounded();
+            VM::new(s, input_rx, output_tx).start();
+            (input_tx, output_rx)
         }
     }
 }

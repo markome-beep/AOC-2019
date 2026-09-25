@@ -28,12 +28,24 @@ fn day07b(input: &str) -> (i32, i32) {
 
         let mut last_rx = rx.clone();
         let mut last_tx = tx.clone();
-
         let mut vms = Vec::new();
-        for s in settings.iter() {
-            last_tx.send(*s).unwrap();
+        for (i, s) in settings.iter().enumerate() {
             let (next_tx, next_rx) = flume::unbounded();
-            let vm = VM::new(input, last_rx, next_tx.clone());
+            let vm = match i {
+                0 => {
+                    tx.send(*s).unwrap();
+                    tx.send(0).unwrap();
+                    VM::new(input, last_rx, next_tx.clone())
+                }
+                val if val == settings.len() - 1 => {
+                    last_tx.send(*s).unwrap();
+                    VM::new(input, last_rx, tx.clone())
+                }
+                _ => {
+                    last_tx.send(*s).unwrap();
+                    VM::new(input, last_rx, next_tx.clone())
+                }
+            };
             vms.push(vm);
             last_rx = next_rx;
             last_tx = next_tx;
@@ -41,11 +53,7 @@ fn day07b(input: &str) -> (i32, i32) {
 
         let h = vms.into_iter().map(|v| v.start()).last().unwrap();
 
-        tx.send(0).unwrap();
-        drop(tx);
-
         let val = h.join().unwrap().unwrap();
-        dbg!("HERE");
 
         if max < val {
             max = val;

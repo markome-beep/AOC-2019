@@ -4,11 +4,24 @@ fn day09a(input: &str) -> i64 {
     let (tx, rx) = VM::simple(input);
     tx.send(1).unwrap();
     drop(tx);
-    rx.iter().last().unwrap()
+    rx.iter()
+        .inspect(|v| {
+            dbg!(v);
+        })
+        .last()
+        .unwrap()
 }
 
-fn day09b(_input: &str) -> i32 {
-    0
+fn day09b(input: &str) -> i64 {
+    let (tx, rx) = VM::simple(input);
+    tx.send(2).unwrap();
+    drop(tx);
+    rx.iter()
+        .inspect(|v| {
+            dbg!(v);
+        })
+        .last()
+        .unwrap()
 }
 
 fn main() {

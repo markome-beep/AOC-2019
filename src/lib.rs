@@ -52,6 +52,14 @@ pub mod intcode {
                     .unwrap_or(0),
             }
         }
+
+        pub fn addr(&self, prog: &VM) -> usize{
+            match self.mode {
+                ParamMode::Position => self.val as usize,
+                ParamMode::Relative => (self.val + prog.relative_base) as usize,
+                ParamMode::Immediate => panic!("write to immediate param"),
+            }
+        }
     }
 
     #[derive(Debug)]
@@ -83,16 +91,16 @@ pub mod intcode {
             match self {
                 Op::Add(a, b, o) => {
                     prog.toks
-                        .insert(o.val as usize, a.eval(prog) + b.eval(prog));
+                        .insert(o.addr(prog), a.eval(prog) + b.eval(prog));
                     prog.int_ptr += 4;
                 }
                 Op::Mul(a, b, o) => {
                     prog.toks
-                        .insert(o.val as usize, a.eval(prog) * b.eval(prog));
+                        .insert(o.addr(prog), a.eval(prog) * b.eval(prog));
                     prog.int_ptr += 4;
                 }
                 Op::In(o) => {
-                    prog.toks.insert(o.val as usize, prog.input.recv()?);
+                    prog.toks.insert(o.addr(prog), prog.input.recv()?);
                     prog.int_ptr += 2;
                 }
                 Op::Out(o) => {
@@ -117,20 +125,21 @@ pub mod intcode {
                 }
                 Op::Lt(a, b, o) => {
                     prog.toks.insert(
-                        o.val as usize,
+                        o.addr(prog),
                         if a.eval(prog) < b.eval(prog) { 1 } else { 0 },
                     );
                     prog.int_ptr += 4;
                 }
                 Op::Eq(a, b, o) => {
                     prog.toks.insert(
-                        o.val as usize,
+                        o.addr(prog),
                         if a.eval(prog) == b.eval(prog) { 1 } else { 0 },
                     );
                     prog.int_ptr += 4;
                 }
                 Op::RelBaseOff(o) => {
-                    prog.relative_base += o.eval(prog)
+                    prog.relative_base += o.eval(prog);
+                    prog.int_ptr += 2;
                 }
                 Op::Exit => {}
                 Op::Unknown(c) => panic!("Unkown Code: {}", c),
@@ -153,7 +162,7 @@ pub mod intcode {
                     },
                     Param {
                         val: toks[&(3 + offset)],
-                        mode: 0.into(),
+                        mode: (param_modes / 100 % 10).into(),
                     },
                 ),
                 2 => Op::Mul(
@@ -167,7 +176,7 @@ pub mod intcode {
                     },
                     Param {
                         val: toks[&(3 + offset)],
-                        mode: 0.into(),
+                        mode: (param_modes / 100 % 10).into(),
                     },
                 ),
                 3 => Op::In(Param {
@@ -209,7 +218,7 @@ pub mod intcode {
                     },
                     Param {
                         val: toks[&(3 + offset)],
-                        mode: 0.into(),
+                        mode: (param_modes / 100 % 10).into(),
                     },
                 ),
                 8 => Op::Eq(
@@ -223,7 +232,7 @@ pub mod intcode {
                     },
                     Param {
                         val: toks[&(3 + offset)],
-                        mode: 0.into(),
+                        mode: (param_modes / 100 % 10).into(),
                     },
                 ),
                 9 => Op::RelBaseOff(Param {

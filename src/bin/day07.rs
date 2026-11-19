@@ -1,7 +1,7 @@
 use aoc_2019::intcode::VM;
 use itertools::Itertools;
 
-fn day07a(input: &str) -> (i32, i32) {
+fn day07a(input: &str) -> (i64, i64) {
     let mut max = 0;
     let mut out = 0;
     for settings in (0..=4).permutations(5) {
@@ -20,7 +20,7 @@ fn day07a(input: &str) -> (i32, i32) {
     (out, max)
 }
 
-fn day07b(input: &str) -> (i32, i32) {
+fn day07b(input: &str) -> (i64, i64) {
     let mut max = 0;
     let mut out = 0;
     for settings in (5..=9).permutations(5) {
